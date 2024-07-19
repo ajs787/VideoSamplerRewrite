@@ -4,28 +4,33 @@ import pandas as pd
 import logging
 import webdataset as wds
 from SamplerFunctions import sample_video
+from WriteToDataset import write_to_dataset
 import argparse
 import subprocess
-from multiprocessing import freeze_support, Lock
+from multiprocessing import Manager, freeze_support, Lock
 import concurrent  # for multitprocessing and other stuff
-from SamplerFunctions import sample_video
 import re
+import cv2
 import os
 
 
+import os
+# os.environ['OMP_NUM_THREADS'] = '4'  # Adjust the number as necessary
+
+
 format = "%(asctime)s: %(message)s"
-logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
+logging.basicConfig(format=format, level=logging.DEBUG, datefmt="%H:%M:%S")
 
 
 def create_writers(
-    dataset_path,
-    dataset_name,
-    dataset,
-    number_of_samples_max,
-    max_workers,
-    frames_per_sample,
-    normalize,
-    out_channels,
+    dataset_path: str,
+    dataset_name: str,
+    dataset: pd.DataFrame,
+    number_of_samples_max: int,
+    max_workers: int,
+    frames_per_sample: int,
+    normalize: bool,
+    out_channels: int,
 ):
     sample_start = time.time()
     """
@@ -36,39 +41,55 @@ def create_writers(
     - write the samples to a tar file
     """
     try:
-
+        logging.info(os.path.join(dataset_path, dataset_name.replace(".csv", ".tar")))
         datawriter = wds.TarWriter(
             os.path.join(dataset_path, dataset_name.replace(".csv", ".tar")),
             encoder=False,
         )
-        # write_list = Manager().list()
-        tar_lock = Lock()
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=max_workers
-        ) as executor:
-            futures = [
-                executor.submit(
-                    sample_video,
-                    dataset_path,
-                    number_of_samples_max,
-                    datawriter,
-                    tar_lock,
-                    row,
-                    frames_per_sample,
-                    frames_per_sample,
-                    normalize,
-                    out_channels,
+        with Manager() as manager:
+            sample_list = manager.list()
+            tar_lock = Manager().Lock()
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=max_workers
+            ) as executor_inner:
+                futures = [
+                    executor_inner.submit(
+                        sample_video,
+                        row["file"],
+                        sample_list,
+                        number_of_samples_max,
+                        dataset_name.replace(".csv", ".tar"),
+                        tar_lock,
+                        row,
+                        frames_per_sample,
+                        frames_per_sample,
+                        normalize,
+                        out_channels,
+                    )
+                    for index, row in dataset.iterrows()
+                ]
+                concurrent.futures.wait(futures)
+                logging.info(
+                    f"Submitted {len(futures)} tasks to the executor for {dataset_name}"
                 )
-                for index, row in dataset.iterrows()
-            ]
-            concurrent.futures.wait(futures)
-            logging.info(f"Executor mapped for {dataset_name}")
+                logging.info(f"Executor mapped for {dataset_name}")
+                
+        logging.info(f"Writing samples to the tar file for {dataset_name}")
 
+        write_to_dataset(
+            dataset_name.replace(".csv", ".tar"),
+            sample_list,
+            tar_lock,
+            dataset_path,
+            frames_per_sample,
+            out_channels,
+        )
         sample_end = time.time()
         datawriter.close()
         logging.info(
             f"Time taken to write the samples for {dataset_name}: {sample_end - sample_start} seconds"
         )
+        return futures
     except Exception as e:
         logging.error(f"An error occured in create_writers function: {e}")
         raise e
@@ -125,29 +146,29 @@ def main():
             [ansi_escape.sub("", line).strip() for line in result.stdout.splitlines()]
         )
         logging.info(f"File List: {file_list}")
-
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=args.max_workers
-        ) as executor:
-            logging.debug(f"Executor established")
-            futures = [
-                executor.submit(
-                    create_writers,
-                    dataset_path,
-                    file,
-                    pd.read_csv(file),
-                    number_of_samples,
-                    args.max_workers,
-                    args.frames_per_sample,
-                    args.normalize,
-                    args.out_channels,
-                )
-                for file in file_list
-            ]
-            concurrent.futures.wait(futures)
-            logging.debug(f"Executor mapped")
-        end = time.time()
-        logging.info(f"Time taken to run the the script: {end - start} seconds")
+        with Manager() as manager:
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=args.max_workers
+            ) as executor:
+                logging.debug(f"Executor established")
+                futures = [
+                    executor.submit(
+                        create_writers,
+                        dataset_path,
+                        file,
+                        pd.read_csv(file),
+                        number_of_samples,
+                        args.max_workers,
+                        args.frames_per_sample,
+                        args.normalize,
+                        args.out_channels,
+                    )
+                    for file in file_list
+                ]
+                concurrent.futures.wait(futures)
+                logging.debug(f"Executor mapped")
+            end = time.time()
+            logging.info(f"Time taken to run the the script: {end - start} seconds")
 
     except Exception as e:
         logging.error(f"An error occured in main function: {e}")
@@ -155,8 +176,10 @@ def main():
 
 
 if __name__ == "__main__":
+    # cv2.setNumThreads(400)
     freeze_support()
     """
     Run three 
     """
     main()
+    
