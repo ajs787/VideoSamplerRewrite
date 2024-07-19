@@ -83,7 +83,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--dataset_path", type=str, help="Path to the datasets", default="."
         )
-        parser.add_arguement(
+        parser.add_argument(
             "--dataset-search-string",
             type=str,
             help="Grep string to get the datasets",
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
         dataset_path = args.dataset_path
         number_of_samples = args.number_of_samples
-        command = f"ls {args.dataset_path} | grep {args.dataset_search_string}"
+        command = f"ls {os.path.join(args.dataset_path, args.dataset_search_string)}"
         ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
         file_list = sorted(
