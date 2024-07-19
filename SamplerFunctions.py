@@ -10,9 +10,11 @@ import webdataset as wds
 from WriteToDataset import write_to_dataset
 
 import os
+
 # os.environ['OMP_NUM_THREADS'] = '4'  # Adjust the number as necessary
 
 # cv2.setNumThreads(400)
+
 
 def sample_video(
     video_path: str,
@@ -60,25 +62,33 @@ def sample_video(
         frame_of_sample = 0
         logging.info(f"Capture to {video_path} about to be established")
         cap = cv2.VideoCapture(video_path)
-        fourcc = cv2.VideoWriter_fourcc(*'H264')  # Using H.264 codec
+
+        if not cap.isOpened():
+            logging.error(f"Failed to open video {video_path}")
+            return
+        fourcc = cv2.VideoWriter_fourcc(*"H264")  # Using H.264 codec
         # cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+        
+        if count % 10000 == 0:
+            logging.info(f"Frame {count} read from video {video_path}")        
         while count <= end_frame:
             ret, frame = cap.read()
             if not ret:
                 break
-            
-            logging.debug(f"Frame {count} read from video {video_path}")
-            
+
+            # logging.debug(f"Frame {count} read from video {video_path}")
+
             count += 1
             if count in target_samples:
-                logging.debug(f"Frame {count} just triggered the samples_recorded variable")
+                logging.debug(
+                    f"Frame {count} just triggered the samples_recorded variable"
+                )
                 samples_recorded = True
                 frame_of_sample = 0
                 partial_sample = []
 
             #  check if sample needed to be read ->
             if samples_recorded:
-                logging.debug(f"Frame {count} is in the target samples")
                 # convert to greyscale
                 frame_of_sample += 1
                 if normalize:
@@ -93,7 +103,7 @@ def sample_video(
                 contrast = 1.9  # Simple contrast control [1.0-3.0]
                 brightness = 10  # Simple brightness control [0-100]
                 frame = cv2.convertScaleAbs(frame, alpha=contrast, beta=brightness)
-                
+
                 # if level is on debug, name the first frame of the sample to be saved
 
                 cv2.imwrite(f"test_images/{count}.png", frame)
@@ -114,7 +124,7 @@ def sample_video(
 
                 partial_sample.append(in_frame)
                 counts.append(str(count))
-                
+
                 # read one sample as an image
 
             if frame_of_sample == frames_per_sample:
@@ -123,8 +133,12 @@ def sample_video(
                     samples.append([partial_sample[0], video_path, counts, row[1]])
 
                 else:
-                    logging.debug(f"Appending partial sample {torch.cat(partial_sample)}")
-                    samples.append([torch.cat(partial_sample), video_path, counts, row[1]])
+                    logging.debug(
+                        f"Appending partial sample {torch.cat(partial_sample)}"
+                    )
+                    samples.append(
+                        [torch.cat(partial_sample), video_path, counts, row[1]]
+                    )
                     sample_idx += 1
 
                 frame_of_sample = 0
@@ -143,12 +157,21 @@ def sample_video(
         logging.info(
             "Appending samples to the sample list for the dataset: " + str(name)
         )
+        
+        logging.info(f"SAMPLER LIST LENGTH: {len(sample_list)}")
         with lock:
-            sample_list.append(samples)
             
+            sample_list.append(samples)
+
     except Exception as e:
         logging.error(f"Error sampling video {video_path}: {e}")
         raise
+    
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        logging.info(f"Released video capture for {video_path}")
+    return
 
 def getVideoInfo(video_path: str):
     """
@@ -172,7 +195,7 @@ def getVideoInfo(video_path: str):
     total_frames = counts[counts["filename"] == video_path.split("/")[-1]][
         "framecount"
     ].values[0]
-    
+
     cap.release()
 
     return width, height, total_frames
@@ -198,8 +221,8 @@ if __name__ == "__main__":
                 }
             ),
             1,
-            1, 
+            1,
             True,
-            1 
+            1,
         )
         tar_writer.close()

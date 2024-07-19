@@ -7,6 +7,8 @@ from SamplerFunctions import sample_video
 from WriteToDataset import write_to_dataset
 import argparse
 import subprocess
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import Manager, freeze_support, Lock
 import concurrent  # for multitprocessing and other stuff
 import re
@@ -15,11 +17,21 @@ import os
 
 
 import os
-# os.environ['OMP_NUM_THREADS'] = '4'  # Adjust the number as necessary
+
+import resource
+
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (min(1048576, rlimit[1]), rlimit[1]))
+
+logging.info(f"RLIMIT_NOFILE: {resource.getrlimit(resource.RLIMIT_NOFILE)}")
+
+
+multiprocessing.set_start_method("spawn", force=True)
+os.environ["OMP_NUM_THREADS"] = "1"
 
 
 format = "%(asctime)s: %(message)s"
-logging.basicConfig(format=format, level=logging.DEBUG, datefmt="%H:%M:%S")
+logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
 
 
 def create_writers(
@@ -42,10 +54,6 @@ def create_writers(
     """
     try:
         logging.info(os.path.join(dataset_path, dataset_name.replace(".csv", ".tar")))
-        datawriter = wds.TarWriter(
-            os.path.join(dataset_path, dataset_name.replace(".csv", ".tar")),
-            encoder=False,
-        )
         with Manager() as manager:
             sample_list = manager.list()
             tar_lock = Manager().Lock()
@@ -73,26 +81,25 @@ def create_writers(
                     f"Submitted {len(futures)} tasks to the executor for {dataset_name}"
                 )
                 logging.info(f"Executor mapped for {dataset_name}")
-                
-        logging.info(f"Writing samples to the tar file for {dataset_name}")
 
-        write_to_dataset(
-            dataset_name.replace(".csv", ".tar"),
-            sample_list,
-            tar_lock,
-            dataset_path,
-            frames_per_sample,
-            out_channels,
-        )
+            logging.info(f"Writing samples to the tar file for {dataset_name}")
+            logging.debug(f"Sampler list: {sample_list}")
+
+            write_to_dataset(
+                dataset_name.replace(".csv", ".tar"),
+                sample_list,
+                frames_per_sample,
+                out_channels,
+            )
+
         sample_end = time.time()
-        datawriter.close()
         logging.info(
             f"Time taken to write the samples for {dataset_name}: {sample_end - sample_start} seconds"
         )
-        return futures
     except Exception as e:
         logging.error(f"An error occured in create_writers function: {e}")
         raise e
+    return futures
 
 
 def main():
@@ -143,35 +150,34 @@ def main():
         ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
         file_list = sorted(
-            [ansi_escape.sub("", line).strip() for line in result.stdout.splitlines()]
+            [ ansi_escape.sub("", line).strip() for line in result.stdout.splitlines()]
         )
         logging.info(f"File List: {file_list}")
-        with Manager() as manager:
-            with concurrent.futures.ProcessPoolExecutor(
-                max_workers=args.max_workers
-            ) as executor:
-                logging.debug(f"Executor established")
-                futures = [
-                    executor.submit(
-                        create_writers,
-                        dataset_path,
-                        file,
-                        pd.read_csv(file),
-                        number_of_samples,
-                        args.max_workers,
-                        args.frames_per_sample,
-                        args.normalize,
-                        args.out_channels,
-                    )
-                    for file in file_list
-                ]
-                concurrent.futures.wait(futures)
-                logging.debug(f"Executor mapped")
-            end = time.time()
-            logging.info(f"Time taken to run the the script: {end - start} seconds")
-
+        pool = multiprocessing.Pool(processes=args.max_workers)
+        logging.debug(f"Pool established")
+        results = [
+            pool.apply_async(
+                create_writers,
+                (
+                    dataset_path,
+                    file,
+                    pd.read_csv(file),
+                    number_of_samples,
+                    args.max_workers,
+                    args.frames_per_sample,
+                    args.normalize,
+                    args.out_channels,
+                ),
+            )
+            for file in file_list
+        ]
+        for result in results:
+            result.get()
+        logging.debug(f"Pool mapped")
+        end = time.time()
+        logging.info(f"Time taken to run the script: {end - start} seconds")
     except Exception as e:
-        logging.error(f"An error occured in main function: {e}")
+        logging.error(f"An error occurred in main function: {e}")
         raise e
 
 
@@ -182,4 +188,3 @@ if __name__ == "__main__":
     Run three 
     """
     main()
-    
