@@ -24,6 +24,8 @@ def create_writers(
     number_of_samples_max,
     max_workers,
     frames_per_sample,
+    normalize,
+    out_channels,
 ):
     sample_start = time.time()
     """
@@ -47,11 +49,15 @@ def create_writers(
             futures = [
                 executor.submit(
                     sample_video,
+                    dataset_path,
                     number_of_samples_max,
                     datawriter,
                     tar_lock,
                     row,
                     frames_per_sample,
+                    frames_per_sample,
+                    normalize,
+                    out_channels,
                 )
                 for index, row in dataset.iterrows()
             ]
@@ -64,15 +70,11 @@ def create_writers(
             f"Time taken to write the samples for {dataset_name}: {sample_end - sample_start} seconds"
         )
     except Exception as e:
-        logging.error(f"An error occured: {e}")
+        logging.error(f"An error occured in create_writers function: {e}")
         raise e
 
 
-if __name__ == "__main__":
-    freeze_support()
-    """
-    Run three 
-    """
+def main():
     try:
 
         start = time.time()
@@ -107,8 +109,13 @@ if __name__ == "__main__":
             help="The number of frames per sample",
             default=1,
         )
+        parser.add_argument(
+            "--normalize", type=bool, help="Normalize the images", default=True
+        )
+        parser.add_argument(
+            "--out-channels", type=int, help="The number of output channels", default=1
+        )
         args = parser.parse_args()
-
         dataset_path = args.dataset_path
         number_of_samples = args.number_of_samples
         command = f"ls {os.path.join(args.dataset_path, args.dataset_search_string)}"
@@ -127,10 +134,13 @@ if __name__ == "__main__":
                 executor.submit(
                     create_writers,
                     dataset_path,
+                    file,
                     pd.read_csv(file),
                     number_of_samples,
                     args.max_workers,
                     args.frames_per_sample,
+                    args.normalize,
+                    args.out_channels,
                 )
                 for file in file_list
             ]
@@ -140,5 +150,13 @@ if __name__ == "__main__":
         logging.info(f"Time taken to run the the script: {end - start} seconds")
 
     except Exception as e:
-        logging.error(f"An error occured: {e}")
+        logging.error(f"An error occured in main function: {e}")
         raise e
+
+
+if __name__ == "__main__":
+    freeze_support()
+    """
+    Run three 
+    """
+    main()
