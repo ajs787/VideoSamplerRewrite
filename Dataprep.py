@@ -1,9 +1,8 @@
 import numpy as np
 import time
-import ipdb
+
 import pandas as pd
 import logging
-from loky import get_reusable_executor
 import webdataset as wds
 from SamplerFunctions import sample_video
 from WriteToDataset import write_to_dataset
@@ -158,37 +157,41 @@ def main():
             [ ansi_escape.sub("", line).strip() for line in result.stdout.splitlines()]
         )
         logging.info(f"File List: {file_list}")
-        pool = multiprocessing.Pool(processes=args.max_workers)
-        logging.debug(f"Pool established")
-        results = [
-            pool.apply_async(
-                create_writers,
-                (
-                    dataset_path,
-                    file,
-                    pd.read_csv(file),
-                    number_of_samples,
-                    args.max_workers,
-                    args.frames_per_sample,
-                    args.normalize,
-                    args.out_channels,
-                ),
-            )
-            for file in file_list
-        ]
-        for result in results:
-            result.get()
-        logging.debug(f"Pool mapped")
+        
+        
+        create_writers(dataset_path, file_list[0], pd.read_csv(file_list[0]), number_of_samples, args.max_workers, args.frames_per_sample, args.normalize, args.out_channels)
+        # with Manager() as manager:
+        #     with concurrent.futures.ProcessPoolExecutor(
+        #         max_workers=args.max_workers
+        #     ) as executor:
+        #         logging.debug(f"Executor established")
+        #         futures = [
+        #             executor.submit(
+        #                 create_writers,
+        #                 dataset_path,
+        #                 file,
+        #                 pd.read_csv(file),
+        #                 number_of_samples,
+        #                 args.max_workers,
+        #                 args.frames_per_sample,
+        #                 args.normalize,
+        #                 args.out_channels,
+        #             )
+        #             for file in file_list
+        #         ]
+        #         concurrent.futures.wait(futures)
+        #         logging.debug(f"Executor mapped")
         end = time.time()
-        logging.info(f"Time taken to run the script: {end - start} seconds")
+        logging.info(f"Time taken to run the the script: {end - start} seconds")
+
     except Exception as e:
         logging.error(f"An error occurred in main function: {e}")
         raise e
 
 
 if __name__ == "__main__":
-    cv2.setNumThreads(20)
     freeze_support()
+    cv2.setNumThreads(5)
     """
     Run three 
     """
