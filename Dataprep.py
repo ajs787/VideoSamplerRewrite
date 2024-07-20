@@ -16,7 +16,10 @@ import cv2
 import os
 
 
-import os
+
+format = "%(asctime)s: %(message)s"
+logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
+
 
 import resource
 
@@ -29,9 +32,6 @@ logging.info(f"RLIMIT_NOFILE: {resource.getrlimit(resource.RLIMIT_NOFILE)}")
 multiprocessing.set_start_method("spawn", force=True)
 os.environ["OMP_NUM_THREADS"] = "1"
 
-
-format = "%(asctime)s: %(message)s"
-logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
 
 
 def create_writers(
@@ -57,8 +57,9 @@ def create_writers(
         with Manager() as manager:
             sample_list = manager.list()
             tar_lock = Manager().Lock()
+            logging.info(f"Creating the executor for {dataset_name}, cpu count: {multiprocessing.cpu_count() - 2}")
             with concurrent.futures.ProcessPoolExecutor(
-                max_workers=max_workers
+                max_workers=multiprocessing.cpu_count() - 2
             ) as executor_inner:
                 futures = [
                     executor_inner.submit(
