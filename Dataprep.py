@@ -98,6 +98,9 @@ def main():
         # The `data_frame_list` in the provided code is being used to store groups of rows from the
         # `total_dataframe` DataFrame.
         # logging.debug(data_frame_list)
+        for dataset in data_frame_list:
+            # reset dataframe index
+            dataset.reset_index(drop=True, inplace=True)
         for i in range(3):
             logging.info(data_frame_list[i].head())
         with concurrent.futures.ProcessPoolExecutor(
@@ -106,7 +109,7 @@ def main():
             futures = [
                 executor.submit(
                     sample_video,
-                    dataset.iloc[0, 0],
+                    dataset.loc[0, "file"],
                     dataset,
                     number_of_samples,
                     args.frames_per_sample,
