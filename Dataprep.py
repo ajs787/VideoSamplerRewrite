@@ -24,102 +24,19 @@ import re
 import cv2
 import os
 
-max_open_files = 100
-
-file_semaphore = Semaphore(max_open_files)
 
 format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
 
 
-def create_writers(
-    dataset_path: str,
-    dataset_name: str,
-    dataset: pd.DataFrame,
-    number_of_samples_max: int,
-    max_workers: int,
-    frames_per_sample: int,
-    normalize: bool,
-    out_channels: int,
-):
-    sample_start = time.time()
-    """
-    get all the samples from sample video and writem them to a tar file using webdataset
-
-    - read in the dataset
-    - run the command off the dataset
-    - write the samples to a tar file
-    """
-    try:
-        logging.info(os.path.join(dataset_path, dataset_name.replace(".csv", ".tar")))
-        with Manager() as manager:
-            with file_semaphore:
-                name = dataset_name.replace(".csv", "tar") + "directory_temporary"
-                subprocess.run(f"mkdir {name}", shell=True)
-                sample_list = manager.list()
-                tar_lock = manager.Lock()
-                with concurrent.futures.ProcessPoolExecutor(
-                    max_workers=min(max_workers, multiprocessing.cpu_count()) // 5,
-                    initializer=cv2.setNumThreads,
-                    initargs=(1,),
-                ) as executor_inner:
-                    futures = [
-                        executor_inner.submit(
-                            sample_video,
-                            row["file"],
-                            sample_list,
-                            number_of_samples_max,
-                            dataset_name.replace(".csv", ".tar"),
-                            tar_lock,
-                            row,
-                            frames_per_sample,
-                            frames_per_sample,
-                            normalize,
-                            out_channels,
-                            name,
-                        )
-                        for index, row in dataset.iterrows()
-                    ]
-                    concurrent.futures.wait(futures)
-                    logging.info(
-                        f"Submitted {len(futures)} tasks to the executor for {dataset_name}"
-                    )
-                    logging.info(f"Executor mapped for {dataset_name}")
-
-                logging.info(
-                    f"Submitted {len(futures)} tasks to the executor for {dataset_name}"
-                )
-                logging.info(f"Executor mapped for {dataset_name}")
-
-                logging.info(f"Writing samples to the tar file for {dataset_name}")
-                logging.debug(f"Sampler list: {sample_list}")
-                write_to_dataset(
-                    dataset_name.replace(".csv", ".tar"),
-                    sample_list,
-                    frames_per_sample,
-                    out_channels,
-                    name,
-                )
-
-                result = subprocess.run(f"rm -rf {name}", shell=True)
-        sample_end = time.time()
-        logging.info(
-            f"Time taken to write the samples for {dataset_name}: {sample_end - sample_start} seconds"
-        )
-    except Exception as e:
-        logging.error(f"An error occured in create_writers function: {e}")
-        raise e
-    return futures
-
-
 def main():
+    file_list = []
     try:
 
         start = time.time()
         parser = argparse.ArgumentParser(
             description="Perform data preparation for DNN training on a video set."
         )
-
         parser.add_argument(
             "--dataset_path", type=str, help="Path to the datasets", default="."
         )
@@ -168,31 +85,34 @@ def main():
         total_dataframe = pd.DataFrame()
         for file in file_list:
             df = pd.read_csv(file)
-            df["file"] = file
+            df["data_file"] = file
             total_dataframe = pd.concat([total_dataframe, df])
+            subprocess.run(
+                f"mkdir {file.replace('.csv', '')}_samplestemporary", shell=True
+            )
 
         # group by file to get for each file a list of rows
         # then for each file, create a writer
-        data_frame_list = []
-
-        total_dataframe.groupby("file").apply(lambda x: data_frame_list.append(x))
-
+        data_frame_list = [group for _, group in total_dataframe.groupby("file")]
+        logging.info(len(data_frame_list))
+        # The `data_frame_list` in the provided code is being used to store groups of rows from the
+        # `total_dataframe` DataFrame.
+        # logging.debug(data_frame_list)
+        for i in range(3):
+            logging.info(data_frame_list[i].head())
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=min(args.max_workers, multiprocessing.cpu_count())
         ) as executor:
             futures = [
-                [
-                    executor.submit(
-                        sample_video(
-                            dataset["file"].iloc[0],
-                            dataset,
-                            number_of_samples,
-                            args.frames_per_sample,
-                            args.normalize,
-                            args.out_channels,
-                        )
-                    )
-                ]
+                executor.submit(
+                    sample_video,
+                    dataset.iloc[0, 0],
+                    dataset,
+                    number_of_samples,
+                    args.frames_per_sample,
+                    args.normalize,
+                    args.out_channels,
+                )
                 for dataset in data_frame_list
             ]
             concurrent.futures.wait(futures)
@@ -222,6 +142,13 @@ def main():
     except Exception as e:
         logging.error(f"An error occurred in main function: {e}")
         raise e
+
+    finally:
+        # remove all the dirs
+        for file in file_list:
+            subprocess.run(
+                f"rm -rf {file.replace('.csv', '')}_samplestemporary", shell=True
+            )
 
 
 if __name__ == "__main__":
