@@ -39,7 +39,7 @@ import random
 
 def process_sample(file, directory, frames_per_sample, out_channels):
     try:
-        data = np.load(os.path.join(directory, file), weights_only=False)
+        data = np.load(os.path.join(directory, file))
         np_tensor = data['tensor']
         frame = torch.from_numpy(np_tensor)
         
