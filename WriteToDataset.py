@@ -30,6 +30,7 @@ import logging
 import time
 import torch
 import datetime
+import numpy as np
 from torchvision import transforms
 import io
 from concurrent.futures import ThreadPoolExecutor
@@ -38,10 +39,13 @@ import random
 
 def process_sample(file, directory, frames_per_sample, out_channels):
     try:
-        frame = torch.load(os.path.join(directory, file), weights_only=False)
-        s_c_file_path = os.path.join(directory + "txt", file.replace(".pt", ".txt"))
+        data = np.load(os.path.join(directory, file), weights_only=False)
+        np_tensor = data['tensor']
+        frame = torch.from_numpy(np_tensor)
+        
+        s_c_file_path = os.path.join(directory + "txt", file.replace(".npz", ".txt"))
         with open(s_c_file_path, "r") as s_c_file:
-            s = file.replace(".pt", "").split("/")[-1].split("_")
+            s = file.replace(".npz", "").split("/")[-1].split("_")
             if len(s) != 4:
                 logging.error(
                     f"Unexpected format in file name: {file}, split result: {s}"
@@ -94,6 +98,7 @@ def process_sample(file, directory, frames_per_sample, out_channels):
         logging.error(f"Error processing sample {file}: {e}")
         return None
 
+
 def write_to_dataset(
     directory: str,
     tar_file: str,
@@ -123,34 +128,37 @@ def write_to_dataset(
         start_time = time.time()
 
         file_list = [f for f in os.listdir(directory) if not f.endswith(".txt")]
-        
+
         if equalize_samples:
             logging.info(f"Equalizing samples for {directory}")
             sample_dict = {}
             # first find the class with the least number of samples
             # then for each class, delete samples until the number of samples is equal to the minimum
             for file in file_list:
-                s = file.replace(".pt", "").split("/")[-1].split("_")
+                s = file.replace(".npz", "").split("/")[-1].split("_")
                 _, sample_class, _, _ = s
                 if sample_class in sample_dict:
                     sample_dict[sample_class].append(file)
                 else:
                     sample_dict[sample_class] = [file]
             min_samples = min([len(samples) for samples in sample_dict.values()])
-            logging.info(f"Minimum number of samples for directory {directory}: {min_samples}")
+            logging.info(
+                f"Minimum number of samples for directory {directory}: {min_samples}"
+            )
             for samples in sample_dict.values():
                 random.shuffle(samples)
                 for sample in samples[min_samples:]:
                     os.remove(os.path.join(directory, sample))
-                    os.remove(os.path.join(directory + "txt", sample.replace(".pt", ".txt")))
+                    os.remove(
+                        os.path.join(directory + "txt", sample.replace(".npz", ".txt"))
+                    )
             logging.info(f"Equalized samples for {directory} and {directory + 'txt'}")
-            
+
         file_list = [f for f in os.listdir(directory) if not f.endswith(".txt")]
         file_size = len(file_list)
         logging.info(
             f"Reading in the samples from {directory}, finding {len(file_list)} files"
         )
-        
 
         sample_count = 0  # for logging purposes
         old_time = time.time()
@@ -191,11 +199,9 @@ def write_to_dataset(
     logging.info(
         f"Time taken to write to {tar_file}: {str(datetime.timedelta(seconds=int(end_time - start_time)))}"
     )
-    logging.info(
-        f"The number of samples in {tar_file}: {file_size}"
-    )
+    logging.info(f"The number of samples in {tar_file}: {file_size}")
     # logging into the RUN_DESCRIPTION
     with open(os.path.join(dataset_path, "RUN_DESCRIPTION.log"), "a+") as rd:
         rd.write(f"{file_size} samples collected by tar file {tar_file}\n")
-    
+
     return

@@ -211,7 +211,7 @@ def sample_video(
                         if (
                             int(row["frame_of_sample"]) == int(frames_per_sample) - 1
                         ):  # -1 because we start at 0
-                            spc += 1  # scramble to make sure every saved .pt sample is unique
+                            spc += 1  # scramble to make sure every saved .npz sample is unique
                             batch.append(
                                 [
                                     row,
@@ -296,7 +296,7 @@ def save_sample(batch):
             base_name = f"{directory_name}/{video_name}_{d_name}_{count}_{spc}".replace(
                 "\x00", ""
             )
-            pt_name = f"{base_name}.pt"
+            npz_name = f"{base_name}.npz"
             txt_name = f"{directory_name}txt/{video_name}_{d_name}_{count}_{spc}.txt".replace(  # Save the sample counts to a text file; stucture consistent across code (as in finding samples)
                 "\x00", ""
             )
@@ -307,8 +307,8 @@ def save_sample(batch):
                 s_c_file.write(s_c)
 
             # Check for overwriting
-            if pt_name in os.listdir(directory_name):
-                logging.error(f"Overwriting {pt_name}")
+            if npz_name in os.listdir(directory_name):
+                logging.error(f"Overwriting {npz_name}")
 
             # Save the tensor
             if frames_per_sample == 1:
@@ -316,8 +316,12 @@ def save_sample(batch):
             else:
                 t = torch.cat(partial_frames)
 
-            torch.save(t, pt_name)
-            logging.debug(f"Saved sample {s_c} for {video}, with name {pt_name}")
+            # saving space
+            t = t.to(torch.float16).clone().contiguous()
+            np_t = t.cpu().numpy().astype(np.float16)  
+            np.savez_compressed(tensor=np_t)
+
+            logging.debug(f"Saved sample {s_c} for {video}, with name {npz_name}")
 
         except Exception as e:
             logging.error(f"Error saving sample: {e}")
