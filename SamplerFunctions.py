@@ -319,7 +319,7 @@ def save_sample(batch):
             # saving space
             t = t.to(torch.float16).clone().contiguous()
             np_t = t.cpu().numpy().astype(np.float16)  
-            np.savez_compressed(tensor=np_t)
+            np.savez_compressed(file=npz_name, tensor=np_t)
 
             logging.debug(f"Saved sample {s_c} for {video}, with name {npz_name}")
 
