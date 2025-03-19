@@ -153,15 +153,14 @@ def sample_video(
             logging.error(f"Failed to open video {video}")
             return
         with ThreadPoolExecutor(max_workers=max_threads_pic_saving) as executor:
-            batch = []  # using batching to optimize theading
+            batch = []  # using batching to optimize treading
             while True:
                 ret, frame = cap.read()  # read a frame
                 if not ret:
                     break
                 count += 1  # count the frame
-                logging.debug(f"Frame {count} read from video {video}")
                 if count % 10000 == 0 and count != 0:
-                    logging.info(f"Frame {count} read from video {video}")
+                    logging.debug(f"Frame {count} read from video {video}")
                 spc = 0
 
                 relevant_rows = dataframe[
@@ -247,7 +246,6 @@ def sample_video(
                 save_sample(batch)
 
         executor.shutdown(wait=True)
-        logging.info(f"Capture to {video} has been released, writing samples")
         logging.info(  # log the time taken to sample the video
             f"Time taken to sample video: {str(datetime.timedelta(seconds=(end_time - start_time)))}"
             f" wrote {sample_count} samples, {str(datetime.timedelta(seconds=((end_time - start_time)/sample_count)))} per sample"
@@ -297,7 +295,7 @@ def save_sample(batch):
                 "\x00", ""
             )
             npz_name = f"{base_name}.npz"
-            txt_name = f"{directory_name}txt/{video_name}_{d_name}_{count}_{spc}.txt".replace(  # Save the sample counts to a text file; stucture consistent across code (as in finding samples)
+            txt_name = f"{directory_name}txt/{video_name}_{d_name}_{count}_{spc}.txt".replace(  # Save the sample counts to a text file; structure consistent across code (as in finding samples)
                 "\x00", ""
             )
 
@@ -359,7 +357,7 @@ def apply_video_transformations(
         frame = cv2.normalize(frame, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
 
     if out_channels == 1:
-        logging.debug(f"Converting frame {count} to greyscale since out_channels is 1")
+        logging.debug(f"Converting frame {count} to grayscale since out_channels is 1")
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
