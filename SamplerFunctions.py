@@ -247,7 +247,7 @@ def sample_video(
 
         executor.shutdown(wait=True)
         logging.info(  # log the time taken to sample the video
-            f"Time taken to sample video: {str(datetime.timedelta(seconds=(end_time - start_time)))}"
+            f"Time taken to sample video {video}: {str(datetime.timedelta(seconds=(end_time - start_time)))}"
             f" wrote {sample_count} samples, {str(datetime.timedelta(seconds=((end_time - start_time)/sample_count)))} per sample"
         )
     except Exception as e:
