@@ -258,7 +258,6 @@ def sample_video(
     finally:
         cap.release()
         cv2.destroyAllWindows()
-        logging.info(f"Released video capture for {video}")
         gc.collect()
     return
 
