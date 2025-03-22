@@ -89,7 +89,7 @@ def process_sample(file, directory, frames_per_sample, out_channels):
         return sample
     except RuntimeError as e:
         if "PytorchStreamReader" in str(e):
-            # this is where the file is corrupted becase the tensor wasn't read properly
+            # this is where the file is corrupted because the tensor wasn't read properly
             logging.error(f"PytorchStreamReader error processing sample {file}: {e}")
         else:
             logging.error(f"RuntimeError processing sample {file}: {e}")
@@ -181,7 +181,7 @@ def write_to_dataset(
                         if sample_count % 30000 == 0 and sample_count != 0:
                             new_time = time.time()
                             logging.info(
-                                f"Writing sample {sample_count} to dataset tar file {tar_file}; time to write 30,000 samples: {((new_time - old_time)/30000):.2f} seconds"
+                                f"Writing sample {sample_count} to dataset tar file {tar_file}; time to write 30,000 samples: {((new_time - old_time)/30000):.2f} second(s) per sample"
                             )
                             old_time = new_time
 
