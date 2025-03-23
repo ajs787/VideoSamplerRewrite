@@ -201,7 +201,7 @@ def main():
         ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
         file_list = sorted(
-            [ ansi_escape.sub("", line).strip() for line in result.stdout.splitlines()]
+            [ansi_escape.sub("", line).strip() for line in result.stdout.splitlines()]
         )
 
         logging.info(f"File List: {file_list}")
@@ -271,14 +271,15 @@ def main():
         except Exception as e:
             logging.error(f"An error occurred in subprocess: {e}")
             raise e
-        
+
         # log header which will be filled out by the write_to_dataset functions
         with open(os.path.join(args.dataset_path, "RUN_DESCRIPTION.log"), "a+") as rd:
             rd.write("\n-- Sample Collection Results --\n")
-    
 
         try:
-            with concurrent.futures.ThreadPoolExecutor() as executor:
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=min(args.max_workers, os.cpu_count())
+            ) as executor:
                 futures = [
                     executor.submit(
                         write_to_dataset,
