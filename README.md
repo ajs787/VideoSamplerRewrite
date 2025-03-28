@@ -1,4 +1,6 @@
-# Data Sampler Rewrite
+# Video Sampler Rewrite
+
+This project is most used with the [Unified-bee-Runner](https://github.com/Elias2660/Unified-bee-Runner).
 
 ## Installation
 

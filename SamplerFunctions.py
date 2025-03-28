@@ -210,7 +210,8 @@ def sample_video(
                         if (
                             int(row["frame_of_sample"]) == int(frames_per_sample) - 1
                         ):  # -1 because we start at 0
-                            spc += 1  # scramble to make sure every saved .npz sample is unique
+                            # scramble to make sure every saved .npz sample is unique
+                            spc += 1  
                             batch.append(
                                 [
                                     row,
@@ -227,6 +228,8 @@ def sample_video(
                                     batch,
                                 )
                                 batch = []  # reset the batch
+                                # don't know if completely necessary, but was facing
+                                # odd memory issues earlier
                                 gc.collect()
                             if sample_count % 10000 == 0 and sample_count != 0:
                                 logging.info(
@@ -352,6 +355,7 @@ def apply_video_transformations(
     Returns:
         torch.Tensor: The transformed video frame as a tensor.
     """
+    # history: pulled, with minimal edits, from the code from bee_analysis
     if normalize:
         frame = cv2.normalize(frame, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
 
