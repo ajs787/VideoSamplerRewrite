@@ -53,6 +53,9 @@ from WriteToDataset import write_to_dataset
 def main():
     file_list = []
     files = os.listdir()
+
+    # old artifact of the time when this was run by itself
+    # never intended to be used with Unified-bee-Runner
     if "dataprep.log" not in files:
         with open("dataprep.log", "w") as f:
             f.write("---- Data Preparation Log ----\n")
@@ -178,6 +181,7 @@ def main():
             logging.getLogger().setLevel(logging.DEBUG)
             logging.debug("Debug mode activated")
 
+        # logMAXXing
         logging.info(
             f"Starting the data preparation process, with frames per sample: {args.frames_per_sample}, number of samples: {args.number_of_samples}, and max workers: {args.max_workers}, equalize samples: {args.equalize_samples}"
         )
@@ -308,7 +312,7 @@ def main():
             raise e
 
     finally:
-        # deconstruct all resources
+        # deconstruct all resources and declutter data
         for file in file_list:
             base_name = file.replace(".csv", "")
             os.rmdir(f"{base_name}_samplestemporary")
