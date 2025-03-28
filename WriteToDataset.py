@@ -38,6 +38,7 @@ import random
 
 
 def process_sample(file, directory, frames_per_sample, out_channels):
+    # convert the sample into something that can be read into the tar files
     try:
         data = np.load(os.path.join(directory, file))
         np_tensor = data['tensor']
@@ -55,7 +56,8 @@ def process_sample(file, directory, frames_per_sample, out_channels):
             video_path = filename.replace("SPACE", " ")
             sample_class = d_name
             frame_num = s_c_file.read().split("-")
-
+        
+        # to save space, immediately delete the sample's .npz and .txt file
         os.remove(os.path.join(directory, file))
         os.remove(s_c_file_path)
 
@@ -72,6 +74,7 @@ def process_sample(file, directory, frames_per_sample, out_channels):
             "metadata.txt": metadata.encode("utf-8"),
         }
 
+        # write sample / image to memory
         buffers = []
         for i in range(frames_per_sample):
             img = transforms.ToPILImage()(
@@ -129,11 +132,15 @@ def write_to_dataset(
 
         file_list = [f for f in os.listdir(directory) if not f.endswith(".txt")]
 
+        # equalization to ensure the number of samples per class in each sample is
+        # equal to each other (BUT NOT EQUALIZING SAMPLES ACROSS TAR FILES, THOSE
+        # ARE INDEPENDENT)
         if equalize_samples:
             logging.info(f"Equalizing samples for {directory}")
             sample_dict = {}
             # first find the class with the least number of samples
-            # then for each class, delete samples until the number of samples is equal to the minimum
+            # then for each class, delete samples until the number 
+            # of samples is equal to the minimum
             for file in file_list:
                 s = file.replace(".npz", "").split("/")[-1].split("_")
                 _, sample_class, _, _ = s
@@ -162,12 +169,15 @@ def write_to_dataset(
 
         sample_count = 0  # for logging purposes
         old_time = time.time()
+        # using threadpool because ilab is stingy with multiple processes
+        # yes, I know about GIL lock
         with ThreadPoolExecutor(max_workers=max_workers_tar_writing) as executor:
             for i in range(0, len(file_list), batch_size):
                 batch = file_list[i : i + batch_size]
                 results = list(
                     executor.map(
-                        process_sample,  # use batching here too, to speed up the process
+                        # use batching here too, to speed up the process
+                        process_sample,  
                         batch,
                         [directory] * len(batch),
                         [frames_per_sample] * len(batch),
@@ -184,7 +194,7 @@ def write_to_dataset(
                                 f"Writing sample {sample_count} to dataset tar file {tar_file}; time to write 30,000 samples: {((new_time - old_time)/30000):.2f} second(s) per sample"
                             )
                             old_time = new_time
-
+        # make sure everything is written
         executor.shutdown(wait=True)
     except Exception as e:
         executor.shutdown(wait=False)
@@ -192,16 +202,18 @@ def write_to_dataset(
         raise e
 
     finally:
+        # tar writer MUST CLOSE, or the data is unusable
         logging.info(f"Closing tar file {tar_file}")
         tar_writer.close()
+
+    # logging into the RUN_DESCRIPTION
+    with open(os.path.join(dataset_path, "RUN_DESCRIPTION.log"), "a+") as rd:
+        rd.write(f"{file_size} samples collected by tar file {tar_file}\n")
 
     end_time = time.time()
     logging.info(
         f"Time taken to write to {tar_file}: {str(datetime.timedelta(seconds=int(end_time - start_time)))}"
     )
     logging.info(f"The number of samples in {tar_file}: {file_size}")
-    # logging into the RUN_DESCRIPTION
-    with open(os.path.join(dataset_path, "RUN_DESCRIPTION.log"), "a+") as rd:
-        rd.write(f"{file_size} samples collected by tar file {tar_file}\n")
-
     return
+
