@@ -1,11 +1,10 @@
 # Video Sampler Rewrite
 
-This project is most used with the [Unified-bee-Runner](https://github.com/Elias2660/Unified-bee-Runner).
+This project works in conjunction with the [Unified-bee-Runner](https://github.com/Elias2660/Unified-bee-Runner) and uses Python 3.8+.
 
 ## Installation
 
 1. Clone the repository:
-
    ```sh
    git clone https://github.com/Elias2660/VideoSamplerRewrite.git
    cd VideoSamplerRewrite
@@ -18,21 +17,34 @@ This project is most used with the [Unified-bee-Runner](https://github.com/Elias
 
 ## Usage
 
-To prepare the dataset, run:
-
+### Prepare Dataset
+To sample video data and prepare the dataset, run:
 ```sh
-cd .. # into the working directory
-python Dataprep.py --dataset_path <path-to-dataset> --dataset_name <dataset-name> --number_of_samples_max <max-samples> --max_workers <number-of-workers> --frames_per_sample <frames-per-sample>To write data
+cd ..  # change to the working directory
+python Dataprep.py --dataset_path <path-to-dataset> --dataset_name <dataset-name> --number_of_samples_max <max-samples> --max_workers <number-of-workers> --frames_per_sample <frames-per-sample> [--crop] [--normalize]
 ```
+*Optional parameters such as --crop and --normalize can be added as needed.*
 
-to write data to the dataset, run:
-
+### Write Data
+To write data to the dataset, run:
 ```sh
 python WriteToDataset.py
 ```
 
-To run in sbatch, go out to the data directory and run: 
+### Using sbatch
+For sbatch execution, edit the provided settings in the script and run from the data directory:
 ```sh
-sbatch -x /[servers that are currently running] VideoSamplerRewrite/RunDataPrep.sh
+sbatch -x /[servers-currently-active] VideoSamplerRewrite/RunDataPrep.sh
 ```
-Edit that file with the recommended settings.
+
+## Contributing
+
+[Contributions](CONTRIBUTING.md) are welcome! Please follow the guidelines in SECURITY.md and ensure compliance with the project's license.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+## Security
+
+Please review our [Security Policy](SECURITY.md) for guidelines on reporting vulnerabilities.
