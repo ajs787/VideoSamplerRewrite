@@ -243,12 +243,12 @@ def sample_video(
                             partial_frame_list[index] = []
                             dataframe.at[index, "samples_recorded"] = False
 
-            end_time = time.time()
 
             if len(batch) > 0:
                 save_sample(batch)
 
         executor.shutdown(wait=True)
+        end_time = time.time()
         logging.info(  # log the time taken to sample the video
             f"Time taken to sample video {video}: {str(datetime.timedelta(seconds=(end_time - start_time)))}"
             f" wrote {sample_count} samples, {str(datetime.timedelta(seconds=((end_time - start_time)/sample_count)))} per sample"
