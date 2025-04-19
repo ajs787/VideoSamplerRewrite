@@ -183,7 +183,7 @@ def sample_video(
                             f"Frame {count} triggered samples_recorded")
                         dataframe.at[index, "samples_recorded"] = True
 
-                    if row["samples_recorded"]:
+                    if dataframe.at[index, "samples_recorded"]:
 
                         dataframe.at[index, "frame_of_sample"] += 1
                         in_frame = apply_video_transformations(
@@ -377,7 +377,7 @@ def apply_video_transformations(
 
     in_frame = (torch.tensor(
         data=np_frame,
-        dtype=torch.float32,
+        dtype=torch.float16,
     ).permute(2, 0, 1).unsqueeze(0))  # Shape: [1, C, H, W]
 
     if crop:
