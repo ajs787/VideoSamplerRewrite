@@ -82,62 +82,7 @@ def sample_video(
     :type out_channels: int
     :param sample_span: The span between each sample.
     :type sample_span: int
-    :param video: str:
-    :param old_df: pd.DataFrame:
-    :param number_of_samples_max: int:
-    :param frames_per_sample: int:
-    :param normalize: bool:
-    :param out_channels: int:
-    :param sample_span: int:
-    :param out_height: int:  (Default value = None)
-    :param out_width: int:  (Default value = None)
-    :param x_offset: int:  (Default value = 0)
-    :param y_offset: int:  (Default value = 0)
-    :param crop: bool:  (Default value = False)
-    :param max_batch_size: int:  (Default value = 50)
-    :param max_threads_pic_saving: int:  (Default value = 10)
-    :param video: str:
-    :param old_df: pd.DataFrame:
-    :param number_of_samples_max: int:
-    :param frames_per_sample: int:
-    :param normalize: bool:
-    :param out_channels: int:
-    :param sample_span: int:
-    :param out_height: int:  (Default value = None)
-    :param out_width: int:  (Default value = None)
-    :param x_offset: int:  (Default value = 0)
-    :param y_offset: int:  (Default value = 0)
-    :param crop: bool:  (Default value = False)
-    :param max_batch_size: int:  (Default value = 50)
-    :param max_threads_pic_saving: int:  (Default value = 10)
-    :param video: str:
-    :param old_df: pd.DataFrame:
-    :param number_of_samples_max: int:
-    :param frames_per_sample: int:
-    :param normalize: bool:
-    :param out_channels: int:
-    :param sample_span: int:
-    :param out_height: int:  (Default value = None)
-    :param out_width: int:  (Default value = None)
-    :param x_offset: int:  (Default value = 0)
-    :param y_offset: int:  (Default value = 0)
-    :param crop: bool:  (Default value = False)
-    :param max_batch_size: int:  (Default value = 50)
-    :param max_threads_pic_saving: int:  (Default value = 10)
-    :param video: str:
-    :param old_df: pd.DataFrame:
-    :param number_of_samples_max: int:
-    :param frames_per_sample: int:
-    :param normalize: bool:
-    :param out_channels: int:
-    :param sample_span: int:
-    :param out_height: int:  (Default value = None)
-    :param out_width: int:  (Default value = None)
-    :param x_offset: int:  (Default value = 0)
-    :param y_offset: int:  (Default value = 0)
-    :param crop: bool:  (Default value = False)
-    :param max_batch_size: int:  (Default value = 50)
-    :param max_threads_pic_saving: int:  (Default value = 10)
+
     :returns: None
 
     """
@@ -163,25 +108,24 @@ def sample_video(
         begin_frames = dataframe.iloc[:, 2].values
         end_frames = dataframe.iloc[:, 3].values
 
-        # Calculate available samples
-        available_samples = (end_frames - (sample_span - frames_per_sample) -
-                             begin_frames) // sample_span
 
-        # Determine the number of samples
-        num_samples = np.minimum(available_samples, number_of_samples_max)
+        # Calculate available samples for each row in the dataframe
+        available_samples = (end_frames - (sample_span - frames_per_sample) - begin_frames) // sample_span
 
-        # Generate target samples
+        # Generate target samples in one comprehension
         target_samples_list = [
-            sorted(random.sample(range(avail), num)) if avail > 0 else []
-            for avail, num in zip(available_samples, num_samples)
+            [] if avail <= 0 else [
+                begin_frame + s * sample_span
+                for s in sorted(
+                    np.random.choice(
+                        range(avail),
+                        size=min(avail, number_of_samples_max),
+                        replace=False
+                    )
+                )
+            ]
+            for begin_frame, avail in zip(begin_frames, available_samples)
         ]
-
-        # Adjust target samples to start from begin_frame
-        target_samples_list = [[
-            begin_frame + x * sample_span for x in target_samples
-        ]
-                               for begin_frame, target_samples in zip(
-                                   begin_frames, target_samples_list)]
 
         # Log and append results
         for target_samples in target_samples_list:
@@ -406,38 +350,6 @@ def apply_video_transformations(
     :param y_offset: int:  (Default value = 0)
     :param out_width: int:  (Default value = 400)
     :param out_height: int:  (Default value = 400)
-    :param count: int:
-    :param normalize: bool:
-    :param out_channels: int:
-    :param height: int:
-    :param width: int:
-    :param crop: bool:  (Default value = False)
-    :param x_offset: int:  (Default value = 0)
-    :param y_offset: int:  (Default value = 0)
-    :param out_width: int:  (Default value = 400)
-    :param out_height: int:  (Default value = 400)
-    :param count: int:
-    :param normalize: bool:
-    :param out_channels: int:
-    :param height: int:
-    :param width: int:
-    :param crop: bool:  (Default value = False)
-    :param x_offset: int:  (Default value = 0)
-    :param y_offset: int:  (Default value = 0)
-    :param out_width: int:  (Default value = 400)
-    :param out_height: int:  (Default value = 400)
-    :param count: int:
-    :param normalize: bool:
-    :param out_channels: int:
-    :param height: int:
-    :param width: int:
-    :param crop: bool:  (Default value = False)
-    :param x_offset: int:  (Default value = 0)
-    :param y_offset: int:  (Default value = 0)
-    :param out_width: int:  (Default value = 400)
-    :param out_height: int:  (Default value = 400)
-    :returns: The transformed video frame as a tensor.
-    :rtype: torch.Tensor
 
     """
     # history: pulled, with minimal edits, from the code from bee_analysis
