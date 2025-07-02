@@ -257,8 +257,8 @@ def sample_video(
     return
 
 
-# batch contains: row, partial_frames, video, frames_per_sample, count, spc
 def save_sample(batch):
+    # batch is a table with: row, partial_frames, video, frames_per_sample, count, spc
     """Save a sample of frames to disk (per‐sample subdirectories inside your two temp dirs)."""
 
     for row, partial_frames, video, fps, count, spc in batch:
