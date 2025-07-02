@@ -257,10 +257,9 @@ def sample_video(
     return
 
 
-# row, partial_frames, video, frames_per_sample, count, spc
+# batch contains: row, partial_frames, video, frames_per_sample, count, spc
 def save_sample(batch):
     """Save a sample of frames to disk (per‐sample subdirectories inside your two temp dirs)."""
-    import os, cv2, numpy as np, logging
 
     for row, partial_frames, video, fps, count, spc in batch:
         base = row.loc["data_file"].replace(".csv", "")
