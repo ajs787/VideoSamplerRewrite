@@ -1,3 +1,4 @@
+# TODO: ADD SCALING?
 """
 SamplerFunctions.py
 
@@ -44,8 +45,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import cv2
-from PIL import Image
-import io
 import numpy as np
 import pandas as pd
 import torch
@@ -236,26 +235,7 @@ def sample_video(
                             dataframe.at[index, "counts"] = []
                             partial_frame_list[index] = []
                             dataframe.at[index, "samples_recorded"] = False
-            
-            for index, frames in enumerate(partial_frame_list):
-                if len(frames) == frames_per_sample:
-                    batch.append([
-                        dataframe.iloc[index],
-                        frames,
-                        video,
-                        frames_per_sample,
-                        count,
-                        0,
-                    ])
-                elif len(frames) > 0:
-                    # debugging incomplete samples
-                    row = dataframe.iloc[index]
-                    logging.warning(
-                        f"WARNING!!!! Incomplete sample for index {index}: only {len(frames)} frames (expected {frames_per_sample}). "
-                        f"Begin/end frames: {row['begin_frame']}/{row['end_frame']}, "
-                        f"Counts collected: {row['counts']}, "
-                        f"Deleted this sample since it was not complete"
-                    )
+
             if len(batch) > 0:
                 save_sample(batch)
 
@@ -280,9 +260,7 @@ def sample_video(
 # row, partial_frames, video, frames_per_sample, count, spc
 def save_sample(batch):
     """Save a sample of frames to disk (per‐sample subdirectories inside your two temp dirs)."""
-    import os, logging
-    from PIL import Image
-    import io
+    import os, cv2, numpy as np, logging
 
     for row, partial_frames, video, fps, count, spc in batch:
         base = row.loc["data_file"].replace(".csv", "")
@@ -303,25 +281,21 @@ def save_sample(batch):
         # write frames under their own subfolder
         sample_dir = os.path.join(png_root, key)
         os.makedirs(sample_dir, exist_ok=True)
+        
         for i, frame_tensor in enumerate(partial_frames):
-            arr = (frame_tensor.squeeze(0)
-                               .permute(1, 2, 0)
-                               .cpu()
-                               .numpy()
-                               .clip(0, 255)
-                               .astype(np.uint8))
-
-            img = Image.fromarray(arr)
-            temp_buf = io.BytesIO()
-            img.save(temp_buf, format='PNG')  # includes IEND chunk
-            temp_buf.seek(0)
-
+            # Handle grayscale correctly - extract the single channel data
+            # The tensor shape should be [1, 1, height, width]
+            arr = frame_tensor.squeeze(0).squeeze(0).cpu().numpy().clip(0, 255).astype(np.uint8)
+            
+            # Keep the original filename format
             frame_path = os.path.join(sample_dir, f"frame_{i:03d}.png")
-            with open(frame_path, "wb") as f:
-                f.write(temp_buf.read())
-            temp_buf.close()
+            
+            # Save directly as grayscale
+            cv2.imwrite(frame_path, arr)
 
         logging.debug(f"Saved sample {key}: frames→{sample_dir}, txt→{txt_path}")
+
+
 
 
 def apply_video_transformations(
@@ -346,7 +320,103 @@ def apply_video_transformations(
     :type normalize: bool
     :param out_channels: The number of output channels.
     :type out_channels: int
-    :param...
+    :param height: The desired height of the frame.
+    :type height: int
+    :param width: The desired width of the frame.
+    :type width: int
+    :param crop: bool:  (Default value = False)
+    :param x_offset: int:  (Default value = 0)
+    :param y_offset: int:  (Default value = 0)
+    :param out_width: int:  (Default value = 400)
+    :param out_height: int:  (Default value = 400)
+
+    """
+    # history: pulled, with minimal edits, from the code from bee_analysis
+    if normalize:
+        frame = cv2.normalize(frame,
+                              None,
+                              alpha=0,
+                              beta=255,
+                              norm_type=cv2.NORM_MINMAX)
+
+    # Apply contrast and brightness adjustments
+    contrast = 1.9  # Simple contrast control [1.0-3.0]
+    brightness = 10  # Simple brightness control [0-100]
+    frame = cv2.convertScaleAbs(frame, alpha=contrast, beta=brightness)
+
+    if out_channels == 1:
+        # Convert to grayscale BUT DON'T CONVERT BACK TO BGR
+        logging.debug(
+            f"Converting frame {count} to true grayscale (1-channel)")
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Create tensor differently for grayscale - don't permute dimensions
+        np_frame = np.array(frame)
+        in_frame = torch.tensor(
+            data=np_frame,
+            dtype=torch.float16
+        ).unsqueeze(0).unsqueeze(0)  # Shape: [1, 1, H, W]
+    else:
+        # Standard RGB processing
+        logging.debug(f"Keeping frame {count} as RGB (3-channel)")
+        np_frame = np.array(frame)
+        in_frame = torch.tensor(
+            data=np_frame,
+            dtype=torch.float16
+        ).permute(2, 0, 1).unsqueeze(0)  # Shape: [1, 3, H, W]
+
+    if crop:
+        out_width, out_height, crop_x, crop_y = vidSamplingCommonCrop(
+            height, width, out_height, out_width, 1, x_offset, y_offset)
+        in_frame = in_frame[:, :, crop_y:crop_y + out_height,
+                          crop_x:crop_x + out_width]
+
+    return in_frame
+
+
+def getVideoInfo(video: str):
+    """Retrieves the width and height of a video.
+
+    :param video: str
+    :param video: str:
+    :param video: str:
+    :param video: str:
+    :param video: str:
+    :returns: tuple: A tuple containing the width and height of the video.
+
     """
 
-    
+    try:
+        cap = cv2.VideoCapture(video)
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    finally:
+        cap.release()
+
+    return width, height
+
+
+def vidSamplingCommonCrop(height, width, out_height, out_width, scale,
+                          x_offset, y_offset):
+    """Return the common cropping parameters used in dataprep and annotations.
+
+    :param height: int
+    :param width: int
+    :param out_height: int
+    :param out_width: int
+    :param scale: float
+    :param x_offset: int
+    :param y_offset: int
+    :returns: out_width, out_height, crop_x, crop_y
+
+    """
+
+    if out_width is None:
+        out_width = math.floor(width * scale)
+    if out_height is None:
+        out_height = math.floor(height * scale)
+
+    crop_x = math.floor((width * scale - out_width) / 2 + x_offset)
+    crop_y = math.floor((height * scale - out_height) / 2 + y_offset)
+
+    return out_width, out_height, crop_x, crop_y
